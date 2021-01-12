@@ -1,0 +1,177 @@
+---
+title: "Exploring 2020 global Covid-19 cases"
+output: html_document
+fontsize: 24pt
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+library(readxl)
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+```
+
+### Overview
+
+In our dataset of Covid-19 cases provide by WHO, we decided to use a faceted boxplot to show the distribution and skewness via data quartiles of Covid-19 cases per million per region.
+We also chose a faceted bar graph to show the top 5 number of Covid-19 case per million per region.
+
+After plotting,we managed to conclude that the cases in Covid in the continent Europe is the highest amongst region.
+On the other hand, the spread of the cases in Africa and Oceania are small as the distance between the 25th and 75th percentile in the boxplot is small.
+
+
+```{r Jia Jun, echo = FALSE, cache = TRUE, warning=FALSE}
+col_type <- c('text', 'text', 'text', 'text', rep('numeric', 29), 'text', rep('numeric', 18))
+covid_19_data <- read_excel("../data/owid-covid-data.xlsx", col_names = T, col_types = c(rep("text", 4), rep("numeric", 29), "text", rep("numeric", 18)))
+#"Top 5 countries of Covid-19 cases per million among region"
+covid_19_data$date <- as.Date(covid_19_data$date, format = "%Y-%m-%d")
+
+covid_19_data_cleaned <- covid_19_data %>%
+  filter(location != "International" & location!="World") %>%
+  mutate(continent = ifelse(nchar(continent)<1, "World",continent)) %>%
+  group_by(strftime(date, "%d/%m/%Y")) %>%
+  filter(date== as.Date("31/12/2020", format = "%d/%m/%Y"))
+
+#Facet boxplot
+ggplot(covid_19_data_cleaned, aes(x = continent, 
+                                  y= total_cases_per_million)) +
+  geom_boxplot(aes(fill= continent),
+               outlier.colour = "black",
+                       outlier.shape = 8,
+                       outlier.size = 2) +
+  #geom_text(aes(x = continent, y = total_cases_per_million), label = ifelse(covid_19_data_cleaned$total_cases_per_million == max(covid_19_data_cleaned$total_cases_per_million), location, "")) + 
+  labs(title = "Boxplot of Covid-19 cases per million per region", 
+       x = "Continents",
+       y = "Covid-19 cases per million") +
+  facet_grid(cols = vars(continent), scales = "free")
+
+
+covid_19_data_top_5 <-covid_19_data_cleaned %>%
+  group_by(continent) %>%
+  slice_max(total_cases_per_million, n = 5)
+
+#Plot
+ggplot(covid_19_data_top_5) + 
+  geom_col(mapping=aes(x = location, 
+                       y= total_cases_per_million, fill = continent, 
+                       color = continent)) +
+  labs(title = "Top 5 countries of Covid-19 cases per million amongst region", 
+       x = "Covid 19 cases per million",
+       y = "Countries") +
+  facet_grid(cols = vars(continent), scales = "free") +
+  theme(axis.text.x = element_text(angle = 90))
+
+```
+
+
+```{r Ting Yen, echo = FALSE, cache = TRUE, warning=FALSE}
+#SG
+sg_date <- c(as_date("2020-04-07"), as_date('2020-06-02'), as_date('2020-06-19')) #start, p1, p2 dates
+
+sg <- covid_19_data %>%
+  filter(location == "Singapore") %>%
+  mutate(date = as.Date(date), timediff = date - sg_date[1]) %>%
+  select(c(location, timediff, new_cases_smoothed_per_million))
+
+
+#UK
+uk_date <- c(as_date("2020-03-26"), as_date("2020-07-04")) #start n end dates
+uk <- covid_19_data %>%
+  filter(location == "United Kingdom") %>%
+  mutate(date = as_date(date), timediff = date - uk_date[1]) %>%
+  select(c(location, timediff, new_cases_smoothed_per_million))
+
+#NZ
+
+nz_date <- c(as_date('2020-03-25'), as_date('2020-05-13'))
+nz <- covid_19_data %>%
+  filter(location == 'New Zealand') %>%
+  mutate(date = as_date(date), timediff = date - nz_date[1]) %>%
+  select(c(location, timediff, new_cases_smoothed_per_million))
+
+#AUS
+
+aus_date <- c(as_date('2020-03-21'), as_date('2020-05-15'))
+aus <- covid_19_data %>%
+  filter(location == 'Australia') %>%
+  mutate(date = as_date(date), timediff = date - aus_date[1]) %>%
+  select(c(location, timediff, new_cases_smoothed_per_million))
+    
+df <- rbind(sg, uk, nz, aus)
+
+```
+After looking at the countries worse hit by COVID, we decided to look at the preventive measures a country can take and the effectiveness of it. We decided to look at the effectiveness of lockdown in these 4 countries (SG, NZ, AUS, UK). 
+
+As seen in the plot, cases continued to be in a upwards trend for up to 14 days after lockdown began, as that is the incubation period of COVID19. But afterwards, the cases begin to trend downwards in all the countries. However, the difficulty is in maintaining the low number of new cases after relaxing restrictions.**
+
+(For AUS and UK the plot is referring to the initial lockdown back in March) 
+
+```{r Ting Yen2, echo = FALSE, cache = TRUE, warning=FALSE}
+ggplot(df, aes(x = timediff, y = new_cases_smoothed_per_million, color = location)) + geom_line() +
+  scale_x_continuous(limits = c(-7, 110)) +
+  scale_y_continuous(limits = c(0,180)) +
+  geom_vline(xintercept = 0, lty = 'dotted') +
+  geom_vline(xintercept = uk_date[2] - uk_date[1], lty = 'dashed', color = 'purple') +
+  geom_vline(xintercept = sg_date[3] - sg_date[1], lty = 'dashed', color = 'blue') +
+  geom_vline(xintercept = nz_date[2] - nz_date[1], lty = 'dashed', color = 'darkgreen') +
+  geom_vline(xintercept = aus_date[2] - aus_date[1], lty = 'dashed', color = 'red') +
+  geom_vline(xintercept = 14, lty = 'longdash') + 
+  theme_classic() + 
+  labs(title = 'Days since lockdown began', subtitle = 'Countries see downward trend in cases after 14 days of lockdown') +
+  ylab('New Covid-19 cases per million') + xlab('Days since lockdown began') +
+  geom_text(aes(x = 14, y = 180, label = '14 days'), colour = 'sky blue', hjust = 'left') +
+  geom_text(aes(x = uk_date[2] - uk_date[1], y = 150, label = 'UK relaxes lockdown'), colour = 'black', vjust = -0.1, angle = 90) +
+  geom_text(aes(x = aus_date[2] - aus_date[1], y = 145, label = 'AUS relaxes lockdown'), colour = 'black', vjust = -0.1, angle = 90) +
+  geom_text(aes(x = sg_date[3] - sg_date[1], y = 145, label = 'SG relaxes lockdown'), colour = 'black', vjust = -0.1, angle = 90) +
+  geom_text(aes(x = nz_date[2] - nz_date[1], y = 145, label = 'NZ relaxes lockdown'), colour = 'black', vjust = -0.1, angle = 90)
+```
+
+```{r Zi Hong, echo=FALSE, cache = TRUE, warning=FALSE}
+covid_19_data$date <- as.Date(covid_19_data$date, format = "%Y-%m-%d")
+covid_19_data$total_cases <- replace_na(covid_19_data$total_cases, 0)
+
+
+covid_eoy <- covid_19_data%>%
+  filter(date == as.Date("31-12-20", format = "%d-%m-%y")) %>%
+  filter(location != "International" & location != "World") %>%
+  select(11, 14, 38:52)
+
+cor_covid_eoy <- cor(covid_eoy , use="pair")
+mds1 <- cmdscale(dist(cor_covid_eoy))
+var_names <- dimnames(mds1)[[1]]
+colnames(mds1) <- c("V1", "V2")
+mds1 <- as_tibble(mds1) %>% 
+  mutate(v_names = var_names)
+ggplot(mds1) + 
+  geom_text(aes(x=V1, y=V2, label=v_names), 
+            size=2.5) + 
+  labs(title="Distance between Variables", 
+       x="Variable 1", y="Variable 2") + 
+  theme_minimal()
+
+```
+
+MDS clearly shows the prevalence of covid among the elderly. It is surprising that covid death rate is not correlated to cardiovascular death rate and diabetes prevalence, which means healthy people are also as likely to die from covid.**
+
+
+```{r Jordan, echo=FALSE, cache = TRUE, ,message= FALSE, warning=FALSE}
+fcovid <- covid_19_data %>%
+  filter(date == "2020-12-31") %>%
+  select(stringency_index, location, total_cases_per_million,extreme_poverty,human_development_index,continent) %>%
+  group_by(continent) %>%
+  arrange(desc(total_cases_per_million)) %>%
+  slice_head(n = 5) %>%
+  ungroup() %>%
+  filter(!(location %in% c("World","International")))
+  
+  ggplot(fcovid,aes(total_cases_per_million, human_development_index, label = location)) +
+    geom_text(aes(vjust = 0, hjust = -0.1), check_overlap = TRUE) +
+    geom_smooth(method = "lm") +
+    labs(title = "Plot of Human Development Index v.s Total Cases per million")  +
+    ylab("Human Development Index") +
+    xlab("Total cases per million")
+    
+```
+The following visualisation showcases one of the possible factors that could affect the number of cases per million in the Country. We decided to investigate how human development index affected the number of cases in the country per million. Suprisingly, there is an upward trend observed, we suspect that the counties with lower HDI maybe under reporting.
+
+
